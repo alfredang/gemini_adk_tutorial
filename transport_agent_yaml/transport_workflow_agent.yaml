@@ -1,0 +1,11 @@
+name: transport_workflow_agent
+type: sequential
+description: Sequential workflow that collects locations and researches all transport options.
+
+sub_agents:
+  - $ref: destination_input_agent.yaml
+  - $ref: mrt_agent.yaml
+  - $ref: bus_agent.yaml
+  - $ref: taxi_agent.yaml
+  - $ref: active_transport_agent.yaml
+  - $ref: summary_agent.yaml

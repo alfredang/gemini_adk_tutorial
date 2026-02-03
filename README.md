@@ -6,21 +6,21 @@ A collection of example agents built with [Google's Agent Development Kit (ADK)]
 
 - Python 3.13+
 - Google API Key (for Gemini models)
-- Optional: OpenAI API Key (for OpenAI model examples)
-- Optional: Tavily API Key (for travel agent)
+- Optional: OpenWeather API Key (for weather tools)
+- Optional: Tavily API Key (for web search)
 
 ## Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/alfredang/gemini-adk-tutorial.git
-cd gemini-adk-tutorial
+git clone https://github.com/alfredang/gemini_tutorial.git
+cd gemini_tutorial
 
 # Install dependencies using uv
 uv sync
 
 # Or using pip
-pip install -e .
+pip install google-adk python-dotenv requests tavily-python streamlit
 ```
 
 ## Configuration
@@ -30,8 +30,8 @@ Create a `.env` file in each agent directory with your API keys:
 ```env
 GOOGLE_GENAI_USE_VERTEXAI=0
 GOOGLE_API_KEY=your-google-api-key
-OPENAI_API_KEY=your-openai-api-key  # Optional, for OpenAI examples
-TAVILY_API_KEY=your-tavily-api-key  # Optional, for travel_agent
+OPENWEATHER_API_KEY=your-openweather-key
+TAVILY_API_KEY=your-tavily-key
 ```
 
 ## Running Agents
@@ -39,85 +39,33 @@ TAVILY_API_KEY=your-tavily-api-key  # Optional, for travel_agent
 Use the ADK CLI to run any agent:
 
 ```bash
+# Terminal mode
 adk run <agent_directory>
-```
 
-For example:
-
-```bash
-adk run my_agent
-adk run stock_agent
-adk run travel_agent
+# Web UI mode
+adk web <agent_directory>
 ```
 
 ## Agent Examples
 
-### my_agent
-A basic "Hello World" agent using Gemini.
-
-```python
-from google.adk.agents import Agent
-
-root_agent = Agent(
-    model='gemini-2.5-flash',
-    name='root_agent',
-    description='A helpful assistant for user questions.',
-    instruction='Answer user questions to the best of your knowledge',
-)
-```
-
-### my_agent_model
-Demonstrates using OpenAI models via LiteLlm integration.
-
-```python
-from google.adk.agents import Agent
-from google.adk.models.lite_llm import LiteLlm
-
-root_agent = Agent(
-    model=LiteLlm(model="openai/gpt-4.1-mini"),
-    ...
-)
-```
-
-### my_agent_tools
-Shows how to add tools (like Google Search) to an agent.
-
-```python
-from google.adk.agents import Agent
-from google.adk.tools import google_search
-
-root_agent = Agent(
-    model='gemini-2.5-flash',
-    tools=[google_search],
-    ...
-)
-```
-
-### my_agent_session
-Demonstrates session management with `InMemorySessionService` and `Runner`.
-
-### stock_agent
-A hierarchical multi-agent system for stock analysis:
-
-- **root_agent** - Greets user and introduces capabilities
-- **stock_workflow_agent** (SequentialAgent) - Orchestrates the workflow
-  - **ticker_input_agent** - Collects stock ticker from user
-  - **stock_research_agent** - Researches and generates a detailed report
-
-### travel_agent
-A multi-agent travel planner with specialized sub-agents:
-
-- **planner_agent** - Creates day-by-day itineraries
-- **budget_agent** - Estimates travel costs
-- **local_guide_agent** - Provides food and cultural tips
-- **research_agent** - Searches for current travel information (uses Tavily)
-
-### tutor_agent
-A multi-agent tutoring system with subject-specific tutors:
-
-- **math_tutor_agent** - Helps with mathematics
-- **physics_tutor_agent** - Helps with physics
-- **history_tutor_agent** - Helps with history
+| Agent | Description |
+|-------|-------------|
+| `basic_agent` | Simple banking assistant agent |
+| `multi_tools_agent` | Agent with OpenWeather and Tavily search tools |
+| `agent_session` | Demonstrates session management with Runner |
+| `agent_interact` | Shows agent interaction patterns with event handling |
+| `agent_handoff` | Multi-agent handoff between joke generator and translator |
+| `agent_guardrail` | Agent with `before_model_callback` guardrail to block keywords |
+| `agent_structured_output` | Pydantic-based structured output (Recipe example) |
+| `agent_mcp` | MCP (Model Context Protocol) with StreamableHTTP |
+| `agent_mcp_sse` | MCP with SSE (Server-Sent Events) standard |
+| `agent_model` | Agent with different model configurations |
+| `transport_agent` | Sequential workflow for Singapore transport planning |
+| `transport_agent_yaml` | YAML-based agent configuration (experimental) |
+| `transport_agent_streamlit` | Streamlit web interface for transport agent |
+| `stock_agent` | Hierarchical multi-agent system for stock analysis |
+| `travel_agent` | Multi-agent travel planner with specialized sub-agents |
+| `tutor_agent` | Multi-agent tutoring system with subject-specific tutors |
 
 ## Key Concepts
 
@@ -128,20 +76,16 @@ A multi-agent tutoring system with subject-specific tutors:
 | `Agent` / `LlmAgent` | Basic LLM-powered agent |
 | `SequentialAgent` | Runs sub-agents in sequence |
 | `ParallelAgent` | Runs sub-agents in parallel |
-| `LoopAgent` | Runs sub-agents in a loop |
 
 ### Using Different Models
 
 ```python
 # Gemini (default)
-model='gemini-2.5-flash'
+model='gemini-2.0-flash'
 
 # OpenAI via LiteLlm
 from google.adk.models.lite_llm import LiteLlm
 model=LiteLlm(model="openai/gpt-4o-mini")
-
-# Claude via LiteLlm
-model=LiteLlm(model="anthropic/claude-3-5-sonnet-20241022")
 ```
 
 ### Adding Tools
@@ -153,27 +97,63 @@ from google.adk.tools import google_search
 tools=[google_search]
 
 # Custom function tools
-def my_tool(query: str) -> dict:
-    return {"result": "..."}
+def get_weather(city: str) -> dict:
+    return {"status": "success", "report": "..."}
 
-tools=[my_tool]
+tools=[get_weather]
 ```
 
-### Sub-agents
+### Sub-agents & Handoff
 
 ```python
 root_agent = Agent(
     name="root_agent",
-    sub_agents=[agent1, agent2, agent3],
+    sub_agents=[agent1, agent2],
+    instruction="Transfer to agent1 for task A, agent2 for task B"
+)
+```
+
+### Guardrails
+
+```python
+def block_keyword_guardrail(callback_context, llm_request):
+    # Block requests containing certain keywords
+    if "BLOCK" in user_message.upper():
+        return LlmResponse(content=...)
+    return None
+
+agent = Agent(
+    before_model_callback=block_keyword_guardrail,
     ...
 )
+```
+
+### Structured Output
+
+```python
+from pydantic import BaseModel
+
+class Recipe(BaseModel):
+    title: str
+    ingredients: list[str]
+
+agent = Agent(
+    output_schema=Recipe,
+    ...
+)
+```
+
+## Running with Streamlit
+
+```bash
+cd transport_agent_streamlit
+streamlit run app.py
 ```
 
 ## Resources
 
 - [Google ADK Documentation](https://google.github.io/adk-docs/)
 - [Google ADK GitHub](https://github.com/google/adk-python)
-- [LiteLlm Documentation](https://docs.litellm.ai/)
 
 ## License
 
